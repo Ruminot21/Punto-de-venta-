@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>POS Profesional 2.0</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#101010;
+color:white;
+}
+
+/* MENU */
+
+nav{
+display:flex;
+background:#ff9800;
+}
+
+nav button{
+flex:1;
+padding:15px;
+border:none;
+background:#ff9800;
+font-weight:bold;
+cursor:pointer;
+}
+
+nav button.active{
+background:white;
+}
+
+/* SECCIONES */
+
+section{
+display:none;
+padding:15px;
+}
+
+#venta{display:block}
+
+/* PRODUCTOS */
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+gap:10px;
+}
+
+.card{
+background:#222;
+padding:10px;
+border-radius:8px;
+text-align:center;
+}
+
+.card button{
+background:#4caf50;
+border:none;
+color:white;
+padding:6px;
+margin-top:5px;
+cursor:pointer;
+}
+
+/* CARRITO */
+
+#carrito{
+background:#1a1a1a;
+padding:10px;
+margin-top:20px;
+border-radius:10px;
+}
+
+.item{
+display:flex;
+justify-content:space-between;
+border-bottom:1px solid #333;
+padding:5px;
+}
+
+/* LOGIN */
+
+#login{
+position:fixed;
+inset:0;
+background:#000c;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+#loginBox{
+background:#222;
+padding:25px;
+border-radius:10px;
+width:280px;
+}
+
+input,button{
+width:100%;
+padding:8px;
+margin:5px 0;
+box-sizing:border-box;
+}
+
+button{cursor:pointer}
+
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+
+<div id="login">
+<div id="loginBox">
+
+<h3>Ingreso POS</h3>
+
+<input id="user" placeholder="Usuario">
+<input id="pass" type="password" placeholder="Clave">
+
+<button onclick="login()">Ingresar</button>
+
+<p id="loginError" style="color:red"></p>
+
+</div>
+</div>
+
+<!-- MENU -->
+
+<nav>
+
+<button class="active" onclick="mostrar('venta',this)">Venta</button>
+<button onclick="mostrar('boletas',this)">Boletas</button>
+<button onclick="mostrar('reportes',this)">Reportes</button>
+<button id="btnAdmin" style="display:none" onclick="mostrar('admin',this)">Admin</button>
+
+</nav>
+
+<!-- VENTAS -->
+
+<section id="venta">
+
+<h2>Productos</h2>
+
+<div id="productos" class="grid"></div>
+
+<div id="carrito">
+
+<h3>Carrito</h3>
+
+<div id="items"></div>
+
+<h2>Total $<span id="total">0</span></h2>
+
+<input id="pago" type="number" placeholder="Dinero recibido">
+
+<button onclick="finalizarVenta()">Finalizar Venta</button>
+
+<p id="vuelto"></p>
+
+</div>
+
+</section>
+
+<!-- BOLETAS -->
+
+<section id="boletas">
+
+<h2>Boletas</h2>
+
+<div id="listaBoletas"></div>
+
+</section>
+
+<!-- REPORTES -->
+
+<section id="reportes">
+
+<h2>Reportes</h2>
+
+<button onclick="reporte('diario')">Diario</button>
+<button onclick="reporte('semanal')">Semanal</button>
+<button onclick="reporte('mensual')">Mensual</button>
+
+<h3 id="resultadoReporte"></h3>
+
+</section>
+
+<!-- ADMIN -->
+
+<section id="admin">
+
+<h2>Inventario</h2>
+
+<input id="nombre" placeholder="Producto">
+<input id="precio" type="number" placeholder="Precio">
+<input id="stock" type="number" placeholder="Stock">
+
+<button onclick="agregarProducto()">Agregar</button>
+
+<hr>
+
+<div id="listaAdmin"></div>
+
+</section>
+
+<script>
+
+/* USUARIOS */
+
+const usuarios=[
+{u:"admin",p:"1234",rol:"admin",nombre:"Administrador"},
+{u:"caja",p:"1111",rol:"caja",nombre:"Cajero"}
+]
+
+let usuarioActual=""
+
+/* BASE DATOS */
+
+let menu=JSON.parse(localStorage.getItem("menu"))||[]
+let ventas=JSON.parse(localStorage.getItem("ventas"))||[]
+
+let carrito=[]
+
+/* LOGIN */
+
+function login(){
+
+const u=user.value
+const p=pass.value
+
+const encontrado=usuarios.find(x=>x.u===u&&x.p===p)
+
+if(!encontrado){
+loginError.innerText="Credenciales incorrectas"
+return
+}
+
+usuarioActual=encontrado.nombre
+
+login.style.display="none"
+
+if(encontrado.rol==="admin")
+btnAdmin.style.display="block"
+
+}
+
+/* NAVEGACION */
+
+function mostrar(id,btn){
+
+document.querySelectorAll("section").forEach(s=>s.style.display="none")
+
+document.getElementById(id).style.display="block"
+
+document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"))
+
+btn.classList.add("active")
+
+}
+
+/* PRODUCTOS */
+
+function cargarProductos(){
+
+productos.innerHTML=""
+
+menu.forEach((p,i)=>{
+
+productos.innerHTML+=`
+
+<div class="card">
+
+<h4>${p.name}</h4>
+
+<p>$${p.precio}</p>
+
+<p>Stock ${p.stock}</p>
+
+<button onclick="agregar(${i})">Agregar</button>
+
+</div>
+
+`
+
+})
+
+}
+
+/* CARRITO */
+
+function agregar(i){
+
+if(menu[i].stock<=0){
+alert("Sin stock")
+return
+}
+
+carrito.push(menu[i])
+
+actualizarCarrito()
+
+}
+
+function actualizarCarrito(){
+
+items.innerHTML=""
+
+let total=0
+
+carrito.forEach((p,i)=>{
+
+total+=p.precio
+
+items.innerHTML+=`
+
+<div class="item">
+
+<span>${p.name}</span>
+
+<span>$${p.precio}</span>
+
+<button onclick="eliminar(${i})">X</button>
+
+</div>
+
+`
+
+})
+
+document.getElementById("total").innerText=total
+
+}
+
+function eliminar(i){
+
+carrito.splice(i,1)
+
+actualizarCarrito()
+
+}
+
+/* FINALIZAR */
+
+function finalizarVenta(){
+
+if(carrito.length===0)return
+
+let total=0
+
+carrito.forEach(p=>{
+p.stock--
+total+=p.precio
+})
+
+let folio=ventas.length+1
+
+ventas.push({
+
+folio,
+fecha:new Date(),
+items:[...carrito],
+total,
+cajero:usuarioActual
+
+})
+
+localStorage.setItem("ventas",JSON.stringify(ventas))
+localStorage.setItem("menu",JSON.stringify(menu))
+
+let recibido=Number(pago.value)
+
+let vuelto=recibido-total
+
+vuelto.innerText="Vuelto: $"+vuelto
+
+carrito=[]
+
+actualizarCarrito()
+
+cargarProductos()
+
+listarBoletas()
+
+}
+
+/* BOLETAS */
+
+function listarBoletas(){
+
+listaBoletas.innerHTML=""
+
+ventas.forEach((v,i)=>{
+
+listaBoletas.innerHTML+=`
+
+<div class="item">
+
+<span>Boleta #${v.folio} - $${v.total}</span>
+
+<button onclick="imprimir(${i})">Imprimir</button>
+
+</div>
+
+`
+
+})
+
+}
+
+function imprimir(i){
+
+const v=ventas[i]
+
+let w=window.open("")
+
+w.document.write("<h2>Boleta #"+v.folio+"</h2>")
+
+v.items.forEach(p=>{
+w.document.write("<div>"+p.name+" $"+p.precio+"</div>")
+})
+
+w.document.write("<h3>Total $"+v.total+"</h3>")
+
+w.print()
+
+}
+
+/* REPORTES */
+
+function reporte(tipo){
+
+let hoy=new Date()
+
+let total=0
+
+ventas.forEach(v=>{
+
+let f=new Date(v.fecha)
+
+if(tipo==="diario" && f.toDateString()===hoy.toDateString())
+total+=v.total
+
+if(tipo==="semanal" && (hoy-f)/86400000<=7)
+total+=v.total
+
+if(tipo==="mensual" && f.getMonth()===hoy.getMonth())
+total+=v.total
+
+})
+
+resultadoReporte.innerText="Total "+tipo+": $"+total
+
+}
+
+/* ADMIN */
+
+function agregarProducto(){
+
+menu.push({
+
+name:nombre.value,
+precio:Number(precio.value),
+stock:Number(stock.value)
+
+})
+
+localStorage.setItem("menu",JSON.stringify(menu))
+
+nombre.value=""
+precio.value=""
+stock.value=""
+
+listarAdmin()
+
+cargarProductos()
+
+}
+
+function listarAdmin(){
+
+listaAdmin.innerHTML=""
+
+menu.forEach((p,i)=>{
+
+listaAdmin.innerHTML+=`
+
+<div class="item">
+
+<span>${p.name} $${p.precio} Stock:${p.stock}</span>
+
+<button onclick="eliminarProducto(${i})">Eliminar</button>
+
+</div>
+
+`
+
+})
+
+}
+
+function eliminarProducto(i){
+
+menu.splice(i,1)
+
+localStorage.setItem("menu",JSON.stringify(menu))
+
+listarAdmin()
+
+cargarProductos()
+
+}
+
+/* INIT */
+
+cargarProductos()
+listarAdmin()
+listarBoletas()
+
+</script>
+
+</body>
+</html>

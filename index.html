@@ -2,18 +2,17 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>POS Profesional 2.0</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CURATV POS</title>
 
 <style>
 
 body{
 margin:0;
 font-family:Arial;
-background:#101010;
+background:#111;
 color:white;
 }
-
-/* MENU */
 
 nav{
 display:flex;
@@ -22,7 +21,7 @@ background:#ff9800;
 
 nav button{
 flex:1;
-padding:15px;
+padding:12px;
 border:none;
 background:#ff9800;
 font-weight:bold;
@@ -31,9 +30,8 @@ cursor:pointer;
 
 nav button.active{
 background:white;
+color:black;
 }
-
-/* SECCIONES */
 
 section{
 display:none;
@@ -41,48 +39,6 @@ padding:15px;
 }
 
 #venta{display:block}
-
-/* PRODUCTOS */
-
-.grid{
-display:grid;
-grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-gap:10px;
-}
-
-.card{
-background:#222;
-padding:10px;
-border-radius:8px;
-text-align:center;
-}
-
-.card button{
-background:#4caf50;
-border:none;
-color:white;
-padding:6px;
-margin-top:5px;
-cursor:pointer;
-}
-
-/* CARRITO */
-
-#carrito{
-background:#1a1a1a;
-padding:10px;
-margin-top:20px;
-border-radius:10px;
-}
-
-.item{
-display:flex;
-justify-content:space-between;
-border-bottom:1px solid #333;
-padding:5px;
-}
-
-/* LOGIN */
 
 #login{
 position:fixed;
@@ -93,33 +49,70 @@ align-items:center;
 justify-content:center;
 }
 
-#loginBox{
+#login div{
 background:#222;
 padding:25px;
-border-radius:10px;
-width:280px;
+border-radius:8px;
+width:260px;
 }
 
 input,button{
-width:100%;
 padding:8px;
 margin:5px 0;
+width:100%;
 box-sizing:border-box;
 }
 
-button{cursor:pointer}
+.producto{
+display:flex;
+justify-content:space-between;
+background:#222;
+padding:8px;
+margin:4px 0;
+align-items:center;
+}
+
+#carrito{
+display:none;
+position:fixed;
+right:10px;
+bottom:10px;
+width:280px;
+background:#222;
+border-radius:10px;
+box-shadow:0 0 10px #000;
+}
+
+#carritoHeader{
+background:#ff9800;
+padding:8px;
+cursor:pointer;
+font-weight:bold;
+display:flex;
+justify-content:space-between;
+}
+
+#carritoContenido{
+padding:10px;
+max-height:260px;
+overflow:auto;
+}
+
+.hidden{display:none}
+
+.carroBtn{
+width:30px;
+}
 
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-
 <div id="login">
-<div id="loginBox">
+<div>
 
-<h3>Ingreso POS</h3>
+<h3>Ingreso</h3>
 
 <input id="user" placeholder="Usuario">
 <input id="pass" type="password" placeholder="Clave">
@@ -131,397 +124,376 @@ button{cursor:pointer}
 </div>
 </div>
 
-<!-- MENU -->
-
 <nav>
 
 <button class="active" onclick="mostrar('venta',this)">Venta</button>
 <button onclick="mostrar('boletas',this)">Boletas</button>
 <button onclick="mostrar('reportes',this)">Reportes</button>
-<button id="btnAdmin" style="display:none" onclick="mostrar('admin',this)">Admin</button>
+
+<button id="btnAdmin" style="display:none" onclick="mostrar('admin',this)">
+Inventario
+</button>
+
+<button onclick="logout()">Cerrar sesión</button>
 
 </nav>
 
-<!-- VENTAS -->
-
 <section id="venta">
-
-<h2>Productos</h2>
-
-<div id="productos" class="grid"></div>
-
-<div id="carrito">
-
-<h3>Carrito</h3>
-
-<div id="items"></div>
-
-<h2>Total $<span id="total">0</span></h2>
-
-<input id="pago" type="number" placeholder="Dinero recibido">
-
-<button onclick="finalizarVenta()">Finalizar Venta</button>
-
-<p id="vuelto"></p>
-
-</div>
-
+<h3>Productos</h3>
+<div id="lista"></div>
 </section>
-
-<!-- BOLETAS -->
 
 <section id="boletas">
-
-<h2>Boletas</h2>
-
+<h3>Boletas</h3>
 <div id="listaBoletas"></div>
-
 </section>
-
-<!-- REPORTES -->
 
 <section id="reportes">
 
-<h2>Reportes</h2>
+<h3>Reporte ventas</h3>
 
-<button onclick="reporte('diario')">Diario</button>
-<button onclick="reporte('semanal')">Semanal</button>
-<button onclick="reporte('mensual')">Mensual</button>
-
-<h3 id="resultadoReporte"></h3>
+<input type="date" id="fechaReporte">
+<button onclick="reporte()">Generar reporte</button>
 
 </section>
 
-<!-- ADMIN -->
-
 <section id="admin">
 
-<h2>Inventario</h2>
+<h3>Agregar producto</h3>
 
-<input id="nombre" placeholder="Producto">
-<input id="precio" type="number" placeholder="Precio">
-<input id="stock" type="number" placeholder="Stock">
+<input id="prodNombre" placeholder="Nombre">
+<input id="prodPrecio" type="number" placeholder="Precio">
+<input id="prodStock" type="number" placeholder="Stock">
 
 <button onclick="agregarProducto()">Agregar</button>
 
 <hr>
 
-<div id="listaAdmin"></div>
+<div id="listaProductos"></div>
 
 </section>
 
+<div id="carrito">
+
+<div id="carritoHeader" onclick="toggleCarrito()">
+🛒 Carro
+<span id="estadoCarro">−</span>
+</div>
+
+<div id="carritoContenido">
+
+<div id="itemsCarro"></div>
+
+<hr>
+
+Total: $<span id="total">0</span>
+
+<button onclick="finalizarVenta()">Finalizar Venta</button>
+
+</div>
+
+</div>
+
 <script>
 
-/* USUARIOS */
-
 const usuarios=[
-{u:"admin",p:"1234",rol:"admin",nombre:"Administrador"},
-{u:"caja",p:"1111",rol:"caja",nombre:"Cajero"}
-]
+{u:'admin',p:'1234',rol:'admin',nombre:'Admin'},
+{u:'caja',p:'1111',rol:'caja',nombre:'Caja'}
+];
 
-let usuarioActual=""
+let usuarioActual="";
+let carrito=[];
 
-/* BASE DATOS */
+let ventas=JSON.parse(localStorage.getItem('ventas'))||[];
 
-let menu=JSON.parse(localStorage.getItem("menu"))||[]
-let ventas=JSON.parse(localStorage.getItem("ventas"))||[]
-
-let carrito=[]
-
-/* LOGIN */
+let menu=JSON.parse(localStorage.getItem('menu'))||[
+{name:'Café',precio:900,stock:30},
+{name:'Bebida',precio:1200,stock:20}
+];
 
 function login(){
 
-const u=user.value
-const p=pass.value
+const u=document.getElementById("user").value.trim().toLowerCase();
+const p=document.getElementById("pass").value.trim();
 
-const encontrado=usuarios.find(x=>x.u===u&&x.p===p)
+const encontrado=usuarios.find(x=>x.u===u && x.p===p);
 
 if(!encontrado){
-loginError.innerText="Credenciales incorrectas"
-return
+document.getElementById("loginError").innerText="Datos incorrectos";
+return;
 }
 
-usuarioActual=encontrado.nombre
+usuarioActual=encontrado.nombre;
 
-login.style.display="none"
+document.getElementById("login").style.display="none";
+document.getElementById("carrito").style.display="block";
 
-if(encontrado.rol==="admin")
-btnAdmin.style.display="block"
+if(encontrado.rol==="admin"){
+document.getElementById("btnAdmin").style.display="block";
+}
+
+cargarMenu();
+listarBoletas();
 
 }
 
-/* NAVEGACION */
+function logout(){
+location.reload();
+}
 
 function mostrar(id,btn){
 
-document.querySelectorAll("section").forEach(s=>s.style.display="none")
+document.querySelectorAll("section").forEach(s=>s.style.display="none");
 
-document.getElementById(id).style.display="block"
+document.getElementById(id).style.display="block";
 
-document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"))
+document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
 
-btn.classList.add("active")
+if(btn)btn.classList.add("active");
 
 }
 
-/* PRODUCTOS */
+function guardarMenu(){
+localStorage.setItem("menu",JSON.stringify(menu));
+}
 
-function cargarProductos(){
+function cargarMenu(){
 
-productos.innerHTML=""
+lista.innerHTML="";
 
 menu.forEach((p,i)=>{
 
-productos.innerHTML+=`
+lista.innerHTML+=`
 
-<div class="card">
+<div class="producto">
 
-<h4>${p.name}</h4>
-
-<p>$${p.precio}</p>
-
-<p>Stock ${p.stock}</p>
+<span>${p.name} $${p.precio} Stock:${p.stock}</span>
 
 <button onclick="agregar(${i})">Agregar</button>
 
 </div>
 
-`
+`;
 
-})
+});
 
 }
-
-/* CARRITO */
 
 function agregar(i){
 
 if(menu[i].stock<=0){
-alert("Sin stock")
-return
+alert("Sin stock");
+return;
 }
 
-carrito.push(menu[i])
+menu[i].stock--;
 
-actualizarCarrito()
+carrito.push({...menu[i]});
+
+guardarMenu();
+cargarMenu();
+actualizarCarro();
 
 }
 
-function actualizarCarrito(){
+function actualizarCarro(){
 
-items.innerHTML=""
+itemsCarro.innerHTML="";
 
-let total=0
+let totalCarro=0;
 
 carrito.forEach((p,i)=>{
 
-total+=p.precio
+itemsCarro.innerHTML+=`
 
-items.innerHTML+=`
-
-<div class="item">
+<div class="producto">
 
 <span>${p.name}</span>
 
 <span>$${p.precio}</span>
 
-<button onclick="eliminar(${i})">X</button>
-
 </div>
 
-`
+`;
 
-})
+totalCarro+=p.precio;
 
-document.getElementById("total").innerText=total
+});
 
-}
-
-function eliminar(i){
-
-carrito.splice(i,1)
-
-actualizarCarrito()
+total.innerText=totalCarro;
 
 }
 
-/* FINALIZAR */
+function toggleCarrito(){
+
+const cont=document.getElementById("carritoContenido");
+
+if(cont.classList.contains("hidden")){
+cont.classList.remove("hidden");
+estadoCarro.innerText="−";
+}else{
+cont.classList.add("hidden");
+estadoCarro.innerText="+";
+}
+
+}
 
 function finalizarVenta(){
 
-if(carrito.length===0)return
+if(carrito.length===0){
+alert("No hay productos");
+return;
+}
 
-let total=0
+let total=carrito.reduce((s,p)=>s+p.precio,0);
 
-carrito.forEach(p=>{
-p.stock--
-total+=p.precio
-})
+let efectivo=prompt("Pago en efectivo:");
 
-let folio=ventas.length+1
+if(!efectivo)return;
+
+efectivo=Number(efectivo);
+
+let vuelto=efectivo-total;
+
+if(vuelto<0){
+alert("Pago insuficiente");
+return;
+}
+
+const fecha=new Date();
 
 ventas.push({
-
-folio,
-fecha:new Date(),
+folio:ventas.length+1,
+fecha:fecha.toISOString(),
 items:[...carrito],
-total,
+total:total,
 cajero:usuarioActual
+});
 
-})
+localStorage.setItem("ventas",JSON.stringify(ventas));
 
-localStorage.setItem("ventas",JSON.stringify(ventas))
-localStorage.setItem("menu",JSON.stringify(menu))
+imprimirBoleta(carrito,total,efectivo,vuelto,fecha);
 
-let recibido=Number(pago.value)
-
-let vuelto=recibido-total
-
-vuelto.innerText="Vuelto: $"+vuelto
-
-carrito=[]
-
-actualizarCarrito()
-
-cargarProductos()
-
-listarBoletas()
+carrito=[];
+actualizarCarro();
+listarBoletas();
 
 }
 
-/* BOLETAS */
+function imprimirBoleta(items,total,efectivo,vuelto,fecha){
+
+let texto="";
+
+let cantidad=items.length;
+
+items.forEach(p=>{
+texto+=`${p.name}        $${p.precio}\n`;
+});
+
+let f=new Date(fecha).toLocaleDateString("es-CL");
+
+let boleta=
+`----------------------------
+        CURATV MARKET
+        Curacaví Chile
+----------------------------
+
+${texto}
+
+----------------------------
+PRODUCTOS: ${cantidad}
+
+TOTAL               $${total}
+EFECTIVO            $${efectivo}
+VUELTO              $${vuelto}
+
+Fecha ${f}
+Cajero: ${usuarioActual}
+----------------------------
+Gracias por su compra`;
+
+let ventana=window.open("","","width=300,height=500");
+
+ventana.document.write("<pre>"+boleta+"</pre>");
+
+ventana.print();
+
+}
 
 function listarBoletas(){
 
-listaBoletas.innerHTML=""
-
-ventas.forEach((v,i)=>{
-
-listaBoletas.innerHTML+=`
-
-<div class="item">
-
-<span>Boleta #${v.folio} - $${v.total}</span>
-
-<button onclick="imprimir(${i})">Imprimir</button>
-
-</div>
-
-`
-
-})
-
-}
-
-function imprimir(i){
-
-const v=ventas[i]
-
-let w=window.open("")
-
-w.document.write("<h2>Boleta #"+v.folio+"</h2>")
-
-v.items.forEach(p=>{
-w.document.write("<div>"+p.name+" $"+p.precio+"</div>")
-})
-
-w.document.write("<h3>Total $"+v.total+"</h3>")
-
-w.print()
-
-}
-
-/* REPORTES */
-
-function reporte(tipo){
-
-let hoy=new Date()
-
-let total=0
+listaBoletas.innerHTML="";
 
 ventas.forEach(v=>{
 
-let f=new Date(v.fecha)
+let f=new Date(v.fecha).toLocaleDateString("es-CL");
 
-if(tipo==="diario" && f.toDateString()===hoy.toDateString())
-total+=v.total
+listaBoletas.innerHTML+=`
 
-if(tipo==="semanal" && (hoy-f)/86400000<=7)
-total+=v.total
+<div class="producto">
 
-if(tipo==="mensual" && f.getMonth()===hoy.getMonth())
-total+=v.total
+<span>Folio ${v.folio} - ${f}</span>
 
-})
-
-resultadoReporte.innerText="Total "+tipo+": $"+total
-
-}
-
-/* ADMIN */
-
-function agregarProducto(){
-
-menu.push({
-
-name:nombre.value,
-precio:Number(precio.value),
-stock:Number(stock.value)
-
-})
-
-localStorage.setItem("menu",JSON.stringify(menu))
-
-nombre.value=""
-precio.value=""
-stock.value=""
-
-listarAdmin()
-
-cargarProductos()
-
-}
-
-function listarAdmin(){
-
-listaAdmin.innerHTML=""
-
-menu.forEach((p,i)=>{
-
-listaAdmin.innerHTML+=`
-
-<div class="item">
-
-<span>${p.name} $${p.precio} Stock:${p.stock}</span>
-
-<button onclick="eliminarProducto(${i})">Eliminar</button>
+<span>$${v.total}</span>
 
 </div>
 
-`
+`;
 
-})
-
-}
-
-function eliminarProducto(i){
-
-menu.splice(i,1)
-
-localStorage.setItem("menu",JSON.stringify(menu))
-
-listarAdmin()
-
-cargarProductos()
+});
 
 }
 
-/* INIT */
+function reporte(){
 
-cargarProductos()
-listarAdmin()
-listarBoletas()
+let fecha=document.getElementById("fechaReporte").value;
+
+let lista=ventas;
+
+if(fecha){
+
+lista=ventas.filter(v=>{
+return v.fecha.startsWith(fecha);
+});
+
+}
+
+let total=0;
+
+let texto="REPORTE CURATV MARKET\n\n";
+
+lista.forEach(v=>{
+
+let f=new Date(v.fecha).toLocaleDateString("es-CL");
+
+texto+=`Folio ${v.folio} - ${f} - $${v.total}\n`;
+
+total+=v.total;
+
+});
+
+texto+=`\nTOTAL: $${total}`;
+
+let ventana=window.open("","","width=400,height=600");
+
+ventana.document.write("<pre>"+texto+"</pre>");
+
+}
+
+function agregarProducto(){
+
+let nombre=prodNombre.value;
+let precio=Number(prodPrecio.value);
+let stock=Number(prodStock.value);
+
+if(!nombre)return;
+
+menu.push({name:nombre,precio:precio,stock:stock});
+
+guardarMenu();
+cargarMenu();
+
+}
 
 </script>
 

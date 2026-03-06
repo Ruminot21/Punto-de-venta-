@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CURATV POS PRO</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#111;
+color:white;
+}
+nav{
+display:flex;
+background:#ff9800;
+}
+nav button{
+flex:1;
+padding:12px;
+border:none;
+background:#ff9800;
+font-weight:bold;
+cursor:pointer;
+}
+nav button.active{
+background:white;
+color:black;
+}
+section{
+display:none;
+padding:15px;
+}
+#venta{display:block}
+#login{
+position:fixed;
+inset:0;
+background:#000c;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+#login div{
+background:#222;
+padding:25px;
+border-radius:8px;
+width:260px;
+}
+input,button{
+padding:8px;
+margin:5px 0;
+width:100%;
+box-sizing:border-box;
+}
+.producto{
+display:flex;
+justify-content:space-between;
+background:#222;
+padding:8px;
+margin:4px 0;
+align-items:center;
+}
+#carrito{
+display:none;
+position:fixed;
+right:10px;
+bottom:10px;
+width:280px;
+background:#222;
+border-radius:10px;
+}
+#carritoHeader{
+background:#ff9800;
+padding:8px;
+cursor:pointer;
+display:flex;
+justify-content:space-between;
+}
+#carritoContenido{
+padding:10px;
+max-height:260px;
+overflow:auto;
+}
+.hidden{display:none}
+.boletaModal{
+position:fixed;
+inset:0;
+background:#000a;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+.boleta{
+background:white;
+color:black;
+padding:20px;
+width:280px;
+font-family:monospace;
+}
+</style>
+</head>
+
+<body>
+
+<div id="login">
+<div>
+<h3>Ingreso</h3>
+<input id="user" placeholder="Usuario">
+<input id="pass" type="password" placeholder="Clave">
+<button onclick="login()">Ingresar</button>
+<p id="loginError" style="color:red"></p>
+</div>
+</div>
+
+<nav>
+<button class="active" onclick="mostrar('venta',this)">Venta</button>
+<button onclick="mostrar('boletas',this)">Boletas</button>
+<button onclick="mostrar('reportes',this)">Reportes</button>
+<button id="btnAdmin" style="display:none" onclick="mostrar('admin',this)">Inventario</button>
+<button onclick="logout()">Cerrar sesión</button>
+</nav>
+
+<section id="venta">
+<h3>Productos</h3>
+<div id="lista"></div>
+</section>
+
+<section id="boletas">
+<h3>Boletas</h3>
+<div id="listaBoletas"></div>
+</section>
+
+<section id="reportes">
+<h3>Reporte ventas</h3>
+<input type="date" id="fechaReporte">
+<button onclick="reporte()">Generar reporte</button>
+</section>
+
+<section id="admin">
+<h3>Agregar producto</h3>
+<input id="prodNombre" placeholder="Nombre">
+<input id="prodPrecio" type="number" placeholder="Precio">
+<input id="prodStock" type="number" placeholder="Stock">
+<button onclick="agregarProducto()">Agregar</button>
+
+<h3>Inventario</h3>
+<div id="inventarioAdmin"></div>
+</section>
+
+<div id="carrito">
+<div id="carritoHeader" onclick="toggleCarrito()">
+🛒 Carro
+<span id="estadoCarro">−</span>
+</div>
+<div id="carritoContenido">
+<div id="itemsCarro"></div>
+<hr>
+Total: $<span id="total">0</span>
+<button onclick="finalizarVenta()">Finalizar Venta</button>
+</div>
+</div>
+
+<script>
+const usuarios=[
+{u:'admin',p:'1234',rol:'admin',nombre:'Admin'},
+{u:'caja',p:'1111',rol:'caja',nombre:'Caja'}
+];
+let usuarioActual="";
+let carrito=[];
+let ventas=JSON.parse(localStorage.getItem('ventas'))||[];
+let menu=JSON.parse(localStorage.getItem('menu'))||[
+{name:'Café',precio:900,stock:30},
+{name:'Bebida',precio:1200,stock:20}
+];
+
+function login(){
+const u=document.getElementById("user").value.trim().toLowerCase();
+const p=document.getElementById("pass").value.trim();
+const encontrado=usuarios.find(x=>x.u===u && x.p===p);
+if(!encontrado){
+document.getElementById("loginError").innerText="Datos incorrectos";
+return;
+}
+usuarioActual=encontrado.nombre;
+document.getElementById("login").style.display="none";
+document.getElementById("carrito").style.display="block";
+if(encontrado.rol==="admin"){
+document.getElementById("btnAdmin").style.display="block";
+cargarInventario();
+}
+cargarMenu();
+listarBoletas();
+}
+
+function logout(){ location.reload(); }
+
+function mostrar(id,btn){
+document.querySelectorAll("section").forEach(s=>s.style.display="none");
+document.getElementById(id).style.display="block";
+document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+btn.classList.add("active");
+}
+
+function guardarMenu(){ localStorage.setItem("menu",JSON.stringify(menu)); }
+
+function cargarMenu(){
+lista.innerHTML="";
+menu.forEach((p,i)=>{
+lista.innerHTML+=`
+<div class="producto">
+<span>${p.name} $${p.precio} Stock:${p.stock}</span>
+<button onclick="agregar(${i})">Agregar</button>
+</div>
+`;
+});
+}
+
+function agregar(i){
+if(menu[i].stock <= 0){ alert("Sin stock"); return; }
+let itemCarro = carrito.find(p => p.name === menu[i].name);
+if(itemCarro){ itemCarro.cantidad++; } 
+else { carrito.push({ ...menu[i], cantidad: 1 }); }
+menu[i].stock--;
+guardarMenu();
+cargarMenu();
+actualizarCarro();
+}
+
+function actualizarCarro(){
+itemsCarro.innerHTML = "";
+let totalCarro = 0;
+carrito.forEach((p, index) => {
+itemsCarro.innerHTML += `
+<div class="producto">
+<span>${p.name}</span>
+<span>
+$${p.precio} x ${p.cantidad}
+<button onclick="modificarCantidad(${index}, -1)">−</button>
+<button onclick="modificarCantidad(${index}, 1)">+</button>
+</span>
+</div>
+`;
+totalCarro += p.precio * p.cantidad;
+});
+total.innerText = totalCarro;
+}
+
+function modificarCantidad(index, cambio){
+let p = carrito[index];
+let menuIndex = menu.findIndex(m => m.name === p.name);
+if(cambio === 1 && menu[menuIndex].stock <= 0) return;
+p.cantidad += cambio;
+menu[menuIndex].stock -= cambio;
+if(p.cantidad <= 0){ carrito.splice(index,1); }
+guardarMenu();
+cargarMenu();
+actualizarCarro();
+}
+
+function toggleCarrito(){
+const cont=carritoContenido;
+if(cont.classList.contains("hidden")){
+cont.classList.remove("hidden");
+estadoCarro.innerText="−";
+}else{
+cont.classList.add("hidden");
+estadoCarro.innerText="+";
+}
+}
+
+function finalizarVenta(){
+if(carrito.length===0){ alert("No hay productos"); return; }
+let total=carrito.reduce((s,p)=>s+p.precio*p.cantidad,0);
+let efectivo=prompt("Pago en efectivo:");
+if(!efectivo)return;
+efectivo=Number(efectivo);
+let vuelto=efectivo-total;
+if(vuelto<0){ alert("Pago insuficiente"); return; }
+const venta={
+folio:ventas.length+1,
+fecha:new Date().toISOString(),
+items:[...carrito],
+total:total,
+efectivo:efectivo,
+vuelto:vuelto,
+cajero:usuarioActual
+};
+ventas.push(venta);
+localStorage.setItem("ventas",JSON.stringify(ventas));
+mostrarBoleta(venta);
+carrito=[];
+actualizarCarro();
+listarBoletas();
+}
+
+function mostrarBoleta(venta){
+let agrupado={};
+venta.items.forEach(p=>{
+if(!agrupado[p.name]){ agrupado[p.name]={precio:p.precio,cantidad:0}; }
+agrupado[p.name].cantidad+=p.cantidad;
+});
+let lista="";
+let totalProductos=0;
+Object.keys(agrupado).forEach(nombre=>{
+let item=agrupado[nombre];
+let subtotal=item.precio*item.cantidad;
+totalProductos+=item.cantidad;
+lista+=`<div style="display:flex;justify-content:space-between"><span>${nombre} x${item.cantidad}</span><span>$${subtotal}</span></div>`;
+});
+let fecha=new Date(venta.fecha).toLocaleDateString("es-CL");
+
+// ventana temporal para imprimir
+let w = window.open('', '', 'width=400,height=600');
+w.document.write(`
+<html>
+<head>
+<title>Boleta</title>
+<style>
+body{font-family:monospace;padding:20px;}
+hr{margin:5px 0;}
+div{margin:3px 0;}
+</style>
+</head>
+<body>
+<center><b>CURATV MARKET</b><br>Curacaví Chile</center>
+<hr>
+${lista}
+<hr>
+PRODUCTOS: ${totalProductos}
+<div style="display:flex;justify-content:space-between"><span>TOTAL</span><span>$${venta.total}</span></div>
+<div style="display:flex;justify-content:space-between"><span>EFECTIVO</span><span>$${venta.efectivo}</span></div>
+<div style="display:flex;justify-content:space-between"><span>VUELTO</span><span>$${venta.vuelto}</span></div>
+<hr>
+Fecha ${fecha}<br>Cajero: ${venta.cajero}
+<hr>
+<center>Gracias por su compra</center>
+</body>
+</html>
+`);
+w.document.close();
+w.focus();
+w.print();
+w.close();
+}
+
+function listarBoletas(){
+listaBoletas.innerHTML="";
+ventas.forEach((v,i)=>{
+let f=new Date(v.fecha).toLocaleDateString("es-CL");
+listaBoletas.innerHTML+=`
+<div class="producto">
+<span>Folio ${v.folio} - ${f}</span>
+<span>$${v.total}</span>
+<button onclick="mostrarBoleta(ventas[${i}])">Abrir</button>
+</div>
+`;
+});
+}
+
+function reporte(){
+let fecha=fechaReporte.value;
+let lista=ventas;
+if(fecha){ lista=ventas.filter(v=>v.fecha.startsWith(fecha)); }
+let total=0;
+let texto="REPORTE CURATV MARKET\n\n";
+lista.forEach(v=>{
+let f=new Date(v.fecha).toLocaleDateString("es-CL");
+texto+=`Folio ${v.folio} - ${f} - $${v.total}\n`;
+total+=v.total;
+});
+texto+=`\nTOTAL: $${total}`;
+let w=window.open();
+w.document.write("<pre>"+texto+"</pre>");
+}
+
+function agregarProducto(){
+let nombre=prodNombre.value;
+let precio=Number(prodPrecio.value);
+let stock=Number(prodStock.value);
+menu.push({name:nombre,precio:precio,stock:stock});
+guardarMenu();
+cargarMenu();
+cargarInventario();
+}
+
+function cargarInventario(){
+let html = "";
+menu.forEach((p, i) => {
+html += `<div class="producto"><span>${p.name} - $${p.precio} - Stock: ${p.stock}</span><button onclick="editarProducto(${i})">Editar</button></div>`;
+});
+document.getElementById("inventarioAdmin").innerHTML = html;
+}
+
+function editarProducto(index){
+let p = menu[index];
+let nombre = prompt("Nombre:", p.name);
+if(!nombre) return;
+let precio = Number(prompt("Precio:", p.precio));
+if(isNaN(precio)) return;
+let stock = Number(prompt("Stock:", p.stock));
+if(isNaN(stock)) return;
+menu[index] = {name: nombre, precio: precio, stock: stock};
+guardarMenu();
+cargarMenu();
+cargarInventario();
+}
+</script>
+
+</body>
+</html>

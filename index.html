@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CURATV POS</title>
+<title>CURATV POS PRO</title>
 
 <style>
 
@@ -80,14 +80,12 @@ bottom:10px;
 width:280px;
 background:#222;
 border-radius:10px;
-box-shadow:0 0 10px #000;
 }
 
 #carritoHeader{
 background:#ff9800;
 padding:8px;
 cursor:pointer;
-font-weight:bold;
 display:flex;
 justify-content:space-between;
 }
@@ -100,8 +98,21 @@ overflow:auto;
 
 .hidden{display:none}
 
-.carroBtn{
-width:30px;
+.boletaModal{
+position:fixed;
+inset:0;
+background:#000a;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.boleta{
+background:white;
+color:black;
+padding:20px;
+width:280px;
+font-family:monospace;
 }
 
 </style>
@@ -149,12 +160,9 @@ Inventario
 </section>
 
 <section id="reportes">
-
 <h3>Reporte ventas</h3>
-
 <input type="date" id="fechaReporte">
 <button onclick="reporte()">Generar reporte</button>
-
 </section>
 
 <section id="admin">
@@ -167,9 +175,8 @@ Inventario
 
 <button onclick="agregarProducto()">Agregar</button>
 
-<hr>
-
-<div id="listaProductos"></div>
+<h3>Inventario</h3>
+<div id="inventarioAdmin"></div>
 
 </section>
 
@@ -230,6 +237,7 @@ document.getElementById("carrito").style.display="block";
 
 if(encontrado.rol==="admin"){
 document.getElementById("btnAdmin").style.display="block";
+cargarInventario();
 }
 
 cargarMenu();
@@ -244,12 +252,10 @@ location.reload();
 function mostrar(id,btn){
 
 document.querySelectorAll("section").forEach(s=>s.style.display="none");
-
 document.getElementById(id).style.display="block";
 
 document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
-
-if(btn)btn.classList.add("active");
+btn.classList.add("active");
 
 }
 
@@ -281,14 +287,20 @@ lista.innerHTML+=`
 
 function agregar(i){
 
-if(menu[i].stock<=0){
+if(menu[i].stock <= 0){
 alert("Sin stock");
 return;
 }
 
-menu[i].stock--;
+// Ver si ya existe en carrito
+let itemCarro = carrito.find(p => p.name === menu[i].name);
+if(itemCarro){
+    itemCarro.cantidad++;
+} else {
+    carrito.push({ ...menu[i], cantidad: 1 });
+}
 
-carrito.push({...menu[i]});
+menu[i].stock--;
 
 guardarMenu();
 cargarMenu();
@@ -298,35 +310,52 @@ actualizarCarro();
 
 function actualizarCarro(){
 
-itemsCarro.innerHTML="";
+itemsCarro.innerHTML = "";
 
-let totalCarro=0;
+let totalCarro = 0;
 
-carrito.forEach((p,i)=>{
+carrito.forEach((p, index) => {
 
-itemsCarro.innerHTML+=`
-
+itemsCarro.innerHTML += `
 <div class="producto">
-
-<span>${p.name}</span>
-
-<span>$${p.precio}</span>
-
+    <span>${p.name}</span>
+    <span>
+        $${p.precio} x ${p.cantidad}
+        <button onclick="modificarCantidad(${index}, -1)">−</button>
+        <button onclick="modificarCantidad(${index}, 1)">+</button>
+    </span>
 </div>
-
 `;
 
-totalCarro+=p.precio;
+totalCarro += p.precio * p.cantidad;
 
 });
 
-total.innerText=totalCarro;
+total.innerText = totalCarro;
 
+}
+
+function modificarCantidad(index, cambio){
+let p = carrito[index];
+let menuIndex = menu.findIndex(m => m.name === p.name);
+
+if(cambio === 1 && menu[menuIndex].stock <= 0) return;
+
+p.cantidad += cambio;
+menu[menuIndex].stock -= cambio;
+
+if(p.cantidad <= 0){
+    carrito.splice(index,1);
+}
+
+guardarMenu();
+cargarMenu();
+actualizarCarro();
 }
 
 function toggleCarrito(){
 
-const cont=document.getElementById("carritoContenido");
+const cont=carritoContenido;
 
 if(cont.classList.contains("hidden")){
 cont.classList.remove("hidden");
@@ -345,7 +374,7 @@ alert("No hay productos");
 return;
 }
 
-let total=carrito.reduce((s,p)=>s+p.precio,0);
+let total=carrito.reduce((s,p)=>s+p.precio*p.cantidad,0);
 
 let efectivo=prompt("Pago en efectivo:");
 
@@ -360,19 +389,21 @@ alert("Pago insuficiente");
 return;
 }
 
-const fecha=new Date();
-
-ventas.push({
+const venta={
 folio:ventas.length+1,
-fecha:fecha.toISOString(),
+fecha:new Date().toISOString(),
 items:[...carrito],
 total:total,
+efectivo:efectivo,
+vuelto:vuelto,
 cajero:usuarioActual
-});
+};
+
+ventas.push(venta);
 
 localStorage.setItem("ventas",JSON.stringify(ventas));
 
-imprimirBoleta(carrito,total,efectivo,vuelto,fecha);
+mostrarBoleta(venta);
 
 carrito=[];
 actualizarCarro();
@@ -380,43 +411,92 @@ listarBoletas();
 
 }
 
-function imprimirBoleta(items,total,efectivo,vuelto,fecha){
+function mostrarBoleta(venta){
 
-let texto="";
+let agrupado={};
 
-let cantidad=items.length;
-
-items.forEach(p=>{
-texto+=`${p.name}        $${p.precio}\n`;
+venta.items.forEach(p=>{
+if(!agrupado[p.name]){
+agrupado[p.name]={precio:p.precio,cantidad:0};
+}
+agrupado[p.name].cantidad+=p.cantidad;
 });
 
-let f=new Date(fecha).toLocaleDateString("es-CL");
+let lista="";
+let totalProductos=0;
 
-let boleta=
-`----------------------------
-        CURATV MARKET
-        Curacaví Chile
-----------------------------
+Object.keys(agrupado).forEach(nombre=>{
 
-${texto}
+let item=agrupado[nombre];
+let subtotal=item.precio*item.cantidad;
 
-----------------------------
-PRODUCTOS: ${cantidad}
+totalProductos+=item.cantidad;
 
-TOTAL               $${total}
-EFECTIVO            $${efectivo}
-VUELTO              $${vuelto}
+lista+=`
+<div style="display:flex;justify-content:space-between">
+<span>${nombre} x${item.cantidad}</span>
+<span>$${subtotal}</span>
+</div>
+`;
 
-Fecha ${f}
-Cajero: ${usuarioActual}
-----------------------------
-Gracias por su compra`;
+});
 
-let ventana=window.open("","","width=300,height=500");
+let fecha=new Date(venta.fecha).toLocaleDateString("es-CL");
 
-ventana.document.write("<pre>"+boleta+"</pre>");
+let modal=document.createElement("div");
 
-ventana.print();
+modal.className="boletaModal";
+
+modal.innerHTML=`
+
+<div class="boleta">
+
+<center>
+<b>CURATV MARKET</b><br>
+Curacaví Chile
+</center>
+
+<hr>
+
+${lista}
+
+<hr>
+
+PRODUCTOS: ${totalProductos}
+
+<div style="display:flex;justify-content:space-between">
+<span>TOTAL</span>
+<span>$${venta.total}</span>
+</div>
+
+<div style="display:flex;justify-content:space-between">
+<span>EFECTIVO</span>
+<span>$${venta.efectivo}</span>
+</div>
+
+<div style="display:flex;justify-content:space-between">
+<span>VUELTO</span>
+<span>$${venta.vuelto}</span>
+</div>
+
+<hr>
+
+Fecha ${fecha}<br>
+Cajero: ${venta.cajero}
+
+<hr>
+
+<center>Gracias por su compra</center>
+
+<br>
+
+<button onclick="window.print()">Imprimir</button>
+<button onclick="this.closest('.boletaModal').remove()">Cerrar</button>
+
+</div>
+`;
+
+document.body.appendChild(modal);
 
 }
 
@@ -424,7 +504,7 @@ function listarBoletas(){
 
 listaBoletas.innerHTML="";
 
-ventas.forEach(v=>{
+ventas.forEach((v,i)=>{
 
 let f=new Date(v.fecha).toLocaleDateString("es-CL");
 
@@ -436,6 +516,8 @@ listaBoletas.innerHTML+=`
 
 <span>$${v.total}</span>
 
+<button onclick="mostrarBoleta(ventas[${i}])">Abrir</button>
+
 </div>
 
 `;
@@ -446,16 +528,12 @@ listaBoletas.innerHTML+=`
 
 function reporte(){
 
-let fecha=document.getElementById("fechaReporte").value;
+let fecha=fechaReporte.value;
 
 let lista=ventas;
 
 if(fecha){
-
-lista=ventas.filter(v=>{
-return v.fecha.startsWith(fecha);
-});
-
+lista=ventas.filter(v=>v.fecha.startsWith(fecha));
 }
 
 let total=0;
@@ -463,20 +541,15 @@ let total=0;
 let texto="REPORTE CURATV MARKET\n\n";
 
 lista.forEach(v=>{
-
 let f=new Date(v.fecha).toLocaleDateString("es-CL");
-
 texto+=`Folio ${v.folio} - ${f} - $${v.total}\n`;
-
 total+=v.total;
-
 });
 
 texto+=`\nTOTAL: $${total}`;
 
-let ventana=window.open("","","width=400,height=600");
-
-ventana.document.write("<pre>"+texto+"</pre>");
+let w=window.open();
+w.document.write("<pre>"+texto+"</pre>");
 
 }
 
@@ -486,13 +559,41 @@ let nombre=prodNombre.value;
 let precio=Number(prodPrecio.value);
 let stock=Number(prodStock.value);
 
-if(!nombre)return;
-
 menu.push({name:nombre,precio:precio,stock:stock});
 
 guardarMenu();
 cargarMenu();
+cargarInventario();
 
+}
+
+function cargarInventario(){
+    let html = "";
+    menu.forEach((p, i) => {
+        html += `
+        <div class="producto">
+            <span>${p.name} - $${p.precio} - Stock: ${p.stock}</span>
+            <button onclick="editarProducto(${i})">Editar</button>
+        </div>
+        `;
+    });
+    document.getElementById("inventarioAdmin").innerHTML = html;
+}
+
+function editarProducto(index){
+    let p = menu[index];
+    let nombre = prompt("Nombre:", p.name);
+    if(!nombre) return;
+    let precio = Number(prompt("Precio:", p.precio));
+    if(isNaN(precio)) return;
+    let stock = Number(prompt("Stock:", p.stock));
+    if(isNaN(stock)) return;
+
+    menu[index] = {name: nombre, precio: precio, stock: stock};
+
+    guardarMenu();
+    cargarMenu();
+    cargarInventario();
 }
 
 </script>
